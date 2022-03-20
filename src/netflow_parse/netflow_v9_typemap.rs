@@ -1,3 +1,5 @@
+//! Mapping for known NetFlow v9 types
+
 /// How a data field should be parsed
 #[derive(Debug, Clone, Copy)]
 pub enum NetflowV9TypeHandlingMode {
@@ -43,8 +45,8 @@ pub type NetflowTypeInfo = (&'static str, &'static str, NetflowV9TypeHandlingMod
 
 lazy_static! {
 	/// Data type mapping
-	pub static ref NETFLOW_V9_DATATYPES: std::collections::HashMap<u16, NetflowTypeInfo> = {
-		let mut hm = std::collections::HashMap::new();
+	pub(crate) static ref NETFLOW_V9_DATATYPES: std::collections::HashMap<u16, NetflowTypeInfo> = {
+		let mut hm = std::collections::HashMap::with_capacity(128);
 		hm.insert(1,  ("IN_BYTES", "Incoming counter with length N x 8 bits for number of bytes associated with an IP Flow.", NetflowV9TypeHandlingMode::Number, 1));
 		hm.insert(2,  ("IN_PKTS", "Incoming counter with length N x 8 bits for the number of packets associated with an IP Flow", NetflowV9TypeHandlingMode::Number, 2));
 		hm.insert(3,  ("FLOWS", "Number of flows that were aggregated; default for N is 4", NetflowV9TypeHandlingMode::Number, 3));

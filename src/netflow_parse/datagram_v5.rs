@@ -1,3 +1,6 @@
+//! NetFlow v5 parsing
+
+use std::iter::FusedIterator;
 use std::net::Ipv4Addr;
 use nom::IResult;
 use nom::multi::count;
@@ -36,7 +39,7 @@ fn parse_ipv4_addr(input: &[u8]) -> IResult<&[u8], Ipv4Addr> {
 }
 
 impl NetflowDatagramV5Record {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
+	pub(crate) fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (src_ip, dst_ip, next_hop_ip, snmp_in_if_idx, snmp_out_if_idx, flow_packets, flow_octets,
 			start_sys_uptime, end_sys_uptime, src_port, dst_port, _pad0, tcp_flags, ip_protocol, ip_tos, src_asn, dst_asn, src_mask, dst_mask, _pad1))
 			= tuple((parse_ipv4_addr, parse_ipv4_addr, parse_ipv4_addr, be_u16, be_u16, be_u32, be_u32, be_u32,
@@ -61,7 +64,7 @@ pub struct NetflowDatagramV5 {
 }
 
 impl NetflowDatagramV5 {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
+	pub(crate) fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (num_records, sys_uptime_ms, unix_sec, unix_nsec, flow_seqnum, engine_type, engine_id, sampling_interval)) =
 			tuple((be_u16, be_u32, be_u32, be_u32, be_u32, be_u8, be_u8, be_u16))(input)?;
 
@@ -70,3 +73,30 @@ impl NetflowDatagramV5 {
 		Ok((res, Self { sys_uptime_ms, unix_sec, unix_nsec, flow_seqnum, engine_type, engine_id, sampling_interval, flow_records }))
 	}
 }
+
+
+pub struct NetflowDatagramV5Iter<'a> {
+	res_set: &'a Vec<NetflowDatagramV5Record>,
+	n: usize
+}
+
+impl<'a> Iterator for NetflowDatagramV5Iter<'a> {
+	type Item = &'a NetflowDatagramV5Record;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		let r = self.res_set.get(self.n);
+		self.n += 1;
+		r
+	}
+}
+
+impl<'a> IntoIterator for &'a NetflowDatagramV5 {
+	type Item = &'a NetflowDatagramV5Record;
+	type IntoIter = NetflowDatagramV5Iter<'a>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		NetflowDatagramV5Iter{n: 0, res_set: &self.flow_records}
+	}
+}
+
+impl FusedIterator for NetflowDatagramV5Iter<'_> {}

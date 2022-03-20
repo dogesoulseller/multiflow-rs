@@ -1,3 +1,5 @@
+//! Main datagram parsing module
+
 use std::net::SocketAddr;
 use nom::combinator::fail;
 use nom::number::complete::{be_u16, be_u32, be_u8};
@@ -6,6 +8,7 @@ use nom::sequence::tuple;
 use crate::netflow_parse::datagram_v1::NetflowDatagramV1;
 use crate::netflow_parse::datagram_v5::NetflowDatagramV5;
 use crate::netflow_parse::datagram_v9::NetflowDatagramV9;
+use crate::netflow_parse::NetflowParser;
 
 /// Datagram enum for the various supported NetFlow versions
 ///
@@ -20,6 +23,7 @@ pub enum NetflowDatagramData {
 
 
 /// Data contained in the NetFlow v1 header
+#[derive(Debug, Clone, Copy)]
 pub struct NetflowV1PeekData {
 	pub flow_count: u16,
 	pub sys_uptime: u32,
@@ -28,6 +32,7 @@ pub struct NetflowV1PeekData {
 }
 
 /// Data contained in the NetFlow v5 header
+#[derive(Debug, Clone, Copy)]
 pub struct NetflowV5PeekData {
 	pub flow_count: u16,
 	pub sys_uptime: u32,
@@ -40,6 +45,7 @@ pub struct NetflowV5PeekData {
 }
 
 /// Data contained in the NetFlow v9 header
+#[derive(Debug, Clone, Copy)]
 pub struct NetflowV9PeekData {
 	pub flow_set_count: u16,
 	pub sys_uptime: u32,
@@ -52,6 +58,7 @@ pub struct NetflowV9PeekData {
 /// Datagram peek enum for the various supported NetFlow versions
 ///
 /// Each enum variant contains the version's respective header data
+#[derive(Debug, Clone, Copy)]
 pub enum NetflowPeekResult {
 	V1(NetflowV1PeekData),
 	V5(NetflowV5PeekData),
@@ -62,7 +69,7 @@ pub enum NetflowPeekResult {
 /// Parse the initial non-data meta parts of NetFlow datagrams, returning the original array slice
 ///
 /// This function can be used to handle UDP packets that arrive in the wrong order by matching the sequence number and caching results
-pub fn peek_netflow_basic_info(input: &[u8]) -> IResult<&[u8], NetflowPeekResult> {
+pub(super) fn peek_netflow_basic_info(input: &[u8]) -> IResult<&[u8], NetflowPeekResult> {
 	let (res, netflow_version) = be_u16(input)?;
 
 	match netflow_version {
@@ -102,7 +109,7 @@ pub fn peek_netflow_basic_info(input: &[u8]) -> IResult<&[u8], NetflowPeekResult
 /// - Unsupported NetFlow version
 /// - Template with given ID has not been defined yet or has an ID between 2-255 (inclusive)
 /// - The packet ends prematurely (due to the buffer being full)
-pub fn parse_netflow_data<'a>(input: &'a [u8], addr: &SocketAddr) -> IResult<&'a [u8], NetflowDatagramData> {
+pub(super) fn parse_netflow_data<'a>(input: &'a [u8], addr: &SocketAddr, parser: &mut NetflowParser) -> IResult<&'a [u8], NetflowDatagramData> {
 	let (res, netflow_version) = be_u16(input)?;
 
 	// TODO: IPFIX = 10
@@ -116,7 +123,7 @@ pub fn parse_netflow_data<'a>(input: &'a [u8], addr: &SocketAddr) -> IResult<&'a
 			Ok((res, NetflowDatagramData::DatagramV5(parsed)))
 		}
 		9 => {
-			let (res, parsed) = NetflowDatagramV9::parse_from_datagram(res, addr)?;
+			let (res, parsed) = NetflowDatagramV9::parse_from_datagram(res, addr, parser)?;
 			Ok((res, NetflowDatagramData::DatagramV9(parsed)))
 		}
 		// 10 => {

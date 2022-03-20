@@ -1,11 +1,14 @@
+//! NetFlow v9 data field parsing
+
 use std::borrow::Cow;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use nom::bytes::complete::take;
 use nom::combinator::fail;
 use nom::IResult;
 use nom::number::complete::{be_u128, be_u16, be_u24, be_u32, be_u64, be_u8};
-use crate::netflow_parse::datagram_v9_template::{NETFLOW_V9_OPTIONS_TEMPLATES, NETFLOW_V9_TEMPLATES, NetflowDatagramTemplateField};
+use crate::netflow_parse::datagram_v9_template::NetflowDatagramTemplateField;
 use crate::netflow_parse::netflow_v9_typemap::NetflowV9TypeHandlingMode;
+use crate::netflow_parse::NetflowParser;
 
 /// Parsed data field's value with a given representation
 #[derive(Debug, Clone)]
@@ -33,7 +36,7 @@ pub struct NetflowV9DataField {
 }
 
 impl NetflowV9DataField {
-	pub fn parse_from_datagram<'a>(input: &'a [u8], type_info: &NetflowDatagramTemplateField) -> IResult<&'a [u8], Self> {
+	pub(crate) fn parse_from_datagram<'a>(input: &'a [u8], type_info: &NetflowDatagramTemplateField) -> IResult<&'a [u8], Self> {
 		match type_info.field_type {
 			None => {
 				let (res, bytes) = take(type_info.field_length as usize)(input)?;
@@ -104,30 +107,42 @@ impl NetflowV9DataField {
 	}
 }
 
+/// Type of the records contained in a flow set
+#[derive(Debug, Clone)]
+pub enum NetflowDatagramRecordsType {
+	Regular(Vec<Vec<NetflowV9DataField>>),
+	Option(Vec<Vec<NetflowV9DataField>>),
+}
+
+/// Source template type for a flow set
+#[derive(Debug, Clone, Copy)]
+pub enum NetflowDatagramSourceTemplateType {
+	Regular((SocketAddr, u16)),
+	Option((SocketAddr, u16)),
+}
+
 /// A single flow set containing the records and fields
 #[derive(Debug, Clone)]
 pub struct NetflowDatagramDataFlowSet {
 	pub length: u16,
-	/// Non-option data records
-	pub records: Option<Vec<Vec<NetflowV9DataField>>>,
-	/// Option data records
-	pub option_records: Option<Vec<Vec<NetflowV9DataField>>>,
+	pub source_template: NetflowDatagramSourceTemplateType,
+	pub records: NetflowDatagramRecordsType,
 }
 
 impl NetflowDatagramDataFlowSet {
-	pub fn parse_from_datagram<'a>(input: &'a [u8], addr: &SocketAddr, template_id: u16) -> IResult<&'a [u8], Self> {
+	pub(crate) fn parse_from_datagram<'a>(input: &'a [u8], addr: &SocketAddr, template_id: u16, parser: &mut NetflowParser) -> IResult<&'a [u8], Self> {
 		let (res, length) = be_u16(input)?;
 
-		if let Some(ts) = NETFLOW_V9_TEMPLATES.lock().unwrap().get(&(*addr, template_id)) {
+		if let Some(ts) = parser.templates.get(&(*addr, template_id)) {
 			let template_length = ts.total_field_length();
 
 			let elem_count = (length - 4) / template_length;
 
 			let mut curpos = res;
 
-			let mut records: Vec<Vec<NetflowV9DataField>> = vec![];
+			let mut records: Vec<Vec<NetflowV9DataField>> = Vec::with_capacity(elem_count as usize);
 			for _ in 0..elem_count {
-				let mut fields: Vec<NetflowV9DataField> = vec![];
+				let mut fields: Vec<NetflowV9DataField> = Vec::with_capacity(ts.fields.len());
 				for field_def in &ts.fields {
 					let (res1, field) = NetflowV9DataField::parse_from_datagram(curpos, field_def)?;
 					curpos = res1;
@@ -137,21 +152,21 @@ impl NetflowDatagramDataFlowSet {
 				records.push(fields);
 			}
 
-			let padding = (length - template_length * elem_count) - 4;
-
-			let (res, _) = take(padding)(curpos)?;
-
-			Ok((res, Self { length, records: Some(records), option_records: None }))
-		} else if let Some(ts) = NETFLOW_V9_OPTIONS_TEMPLATES.lock().unwrap().get(&(*addr, template_id)) {
+			Ok((&curpos[((length - template_length * elem_count) - 4) as usize..], Self {
+				length,
+				source_template: NetflowDatagramSourceTemplateType::Regular((*addr, template_id)),
+				records: NetflowDatagramRecordsType::Regular(records),
+			}))
+		} else if let Some(ts) = parser.options_templates.get(&(*addr, template_id)) {
 			let template_length = ts.total_field_length();
 
 			let elem_count = (length - 4) / template_length;
 
 			let mut curpos = res;
 
-			let mut records: Vec<Vec<NetflowV9DataField>> = vec![];
+			let mut records: Vec<Vec<NetflowV9DataField>> = Vec::with_capacity(elem_count as usize);
 			for _ in 0..elem_count {
-				let mut fields: Vec<NetflowV9DataField> = vec![];
+				let mut fields: Vec<NetflowV9DataField> = Vec::with_capacity(ts.option_fields.len());
 				for field_def in &ts.option_fields {
 					let (res1, field) = NetflowV9DataField::parse_from_datagram(curpos, field_def)?;
 					curpos = res1;
@@ -161,11 +176,11 @@ impl NetflowDatagramDataFlowSet {
 				records.push(fields);
 			}
 
-			let padding = (length - template_length * elem_count) - 4;
-
-			let (res, _) = take(padding)(curpos)?;
-
-			Ok((res, Self { length, records: None, option_records: Some(records) }))
+			Ok((&curpos[((length - template_length * elem_count) - 4) as usize..], Self {
+				length,
+				records: NetflowDatagramRecordsType::Option(records),
+				source_template: NetflowDatagramSourceTemplateType::Option((*addr, template_id)),
+			}))
 		} else {
 			eprintln!("Could not find template with ID {} for address {}", template_id, addr);
 			fail(res)

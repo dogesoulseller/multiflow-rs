@@ -1,4 +1,4 @@
-use multiflow::sflow_parse::datagram::datagram_parse;
+use multiflow::sflow_parse::datagram::parse_sflow_data;
 
 pub fn decode_hex(s: &str) -> Result<Vec<u8>, std::num::ParseIntError> {
 	(0..s.len())
@@ -20,14 +20,14 @@ fn main() {
 	}
 
 	for x in ctr_sample_bytes {
-		let test_dg = datagram_parse(x.as_slice()).unwrap().1;
+		let test_dg = parse_sflow_data(x.as_slice()).unwrap().1;
 		println!("Datagram counter: {:?}", test_dg);
 	}
 
 	println!();
 
 	for x in flw_sample_bytes {
-		let test_dg = datagram_parse(x.as_slice()).unwrap().1;
+		let test_dg = parse_sflow_data(x.as_slice()).unwrap().1;
 		println!("Datagram sample: {:?}", test_dg);
 	}
 }

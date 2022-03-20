@@ -1,3 +1,4 @@
+//! sFlow sample parsing module
 pub mod flow;
 pub mod counter;
 
@@ -21,7 +22,6 @@ impl SFlowSample {
 		let (res, sample_type): (&[u8], u32) = be_u32(input)?;
 		let (res, _sample_size): (&[u8], u32) = be_u32(res)?;
 
-		// TODO: Handle unknown values
 		return match sample_type {
 			1 => {
 				let (res, s) = SFlowFlowSample::parse_from_datagram(res)?;

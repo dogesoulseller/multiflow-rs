@@ -1,3 +1,4 @@
+//! sFlow flow sample module
 use nom::bytes::complete::take;
 use nom::combinator::fail;
 use nom::IResult;
@@ -5,7 +6,7 @@ use nom::multi::count;
 use nom::number::complete::be_u32;
 use nom::sequence::tuple;
 
-// TODO: Protocol enum
+/// Raw packet header with the header preserved as a byte vector
 #[derive(Debug, Clone)]
 pub struct SFlowFlowRawPacketHeader {
 	pub protocol: u32,
@@ -16,7 +17,7 @@ pub struct SFlowFlowRawPacketHeader {
 }
 
 impl SFlowFlowRawPacketHeader {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
+	fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (protocol, frame_length, stripped, header_size)) =
 			tuple((be_u32, be_u32, be_u32, be_u32))(input)?;
 
@@ -26,6 +27,7 @@ impl SFlowFlowRawPacketHeader {
 	}
 }
 
+/// Enum with variants representing the supported sample records
 #[derive(Debug, Clone)]
 pub enum SFlowFlowSampleRecord {
 	Raw(SFlowFlowRawPacketHeader),
@@ -47,7 +49,7 @@ pub enum SFlowFlowSampleRecord {
 }
 
 impl SFlowFlowSampleRecord {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
+	fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, record_type) = be_u32(input)?;
 		let (res, _record_size) = be_u32(res)?;
 
@@ -126,6 +128,7 @@ impl SFlowFlowSampleRecord {
 }
 
 
+/// Single sFlow flow sample
 #[derive(Debug, Clone)]
 pub struct SFlowFlowSample {
 	pub seq: u32,
