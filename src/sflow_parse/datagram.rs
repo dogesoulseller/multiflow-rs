@@ -15,7 +15,7 @@ pub struct Datagram {
 	pub sample_record: Vec<SFlowSample>,
 }
 
-pub fn datagram_parse(input: &[u8]) -> IResult<&[u8], Datagram> {
+pub fn parse_sflow_data(input: &[u8]) -> IResult<&[u8], Datagram> {
 	let (res, (sfl, ag, sai, sn, ut, sample_count)) =
 		tuple((be_u32, DatagramIPAddr::from_datagram_bytes, be_u32, be_u32, be_u32, be_u32))(input)?;
 

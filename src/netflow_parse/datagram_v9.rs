@@ -6,16 +6,19 @@ use nom::sequence::tuple;
 use crate::netflow_parse::datagram_v9_data::NetflowDatagramDataFlowSet;
 use crate::netflow_parse::datagram_v9_template::{NetflowDatagramOptionsTemplateSet, NetflowDatagramTemplateSet, register_netflow_options_template, register_netflow_template};
 
+/// Enum containing the three types of data sets in NetFlow v9
 #[derive(Debug, Clone)]
 pub enum NetflowDatagramV9FlowSet {
+	/// The actual data contained in a packet, parsed using data from Template and TemplateOption fields from this or previous packets
 	Data(NetflowDatagramDataFlowSet),
+	/// Data defining the flow data templates for this and future packets from this source
 	Template(NetflowDatagramTemplateSet),
+	/// Data defining the metadata (options) templates for this and future packets from this source
 	TemplateOption(NetflowDatagramOptionsTemplateSet),
 }
 
-
 impl NetflowDatagramV9FlowSet {
-	pub fn parse_from_datagram<'a>(input: &'a [u8], socket: &SocketAddr) -> IResult<&'a [u8], NetflowDatagramV9FlowSet> {
+	pub fn parse_from_datagram<'a>(input: &'a [u8], socket: &SocketAddr) -> IResult<&'a [u8], Self> {
 		let (res, set_id) = be_u16(input)?;
 
 		match set_id {
@@ -23,13 +26,13 @@ impl NetflowDatagramV9FlowSet {
 				let (res, parsed) = NetflowDatagramTemplateSet::parse_from_datagram(res)?;
 				register_netflow_template(&parsed, socket);
 
-				Ok((res, NetflowDatagramV9FlowSet::Template(parsed)))
+				Ok((res, Self::Template(parsed)))
 			}
 			1 => {
 				let (res, parsed) = NetflowDatagramOptionsTemplateSet::parse_from_datagram(res)?;
 				register_netflow_options_template(&parsed, socket);
 
-				Ok((res, NetflowDatagramV9FlowSet::TemplateOption(parsed)))
+				Ok((res, Self::TemplateOption(parsed)))
 			}
 			2..=255 => {
 				eprintln!("Got set id {}. This is an invalid set", set_id);
@@ -38,13 +41,14 @@ impl NetflowDatagramV9FlowSet {
 			256..=u16::MAX => {
 				let (res, parsed) = NetflowDatagramDataFlowSet::parse_from_datagram(res, socket, set_id)?;
 
-				Ok((res, NetflowDatagramV9FlowSet::Data(parsed)))
+				Ok((res, Self::Data(parsed)))
 			}
 		}
 	}
 }
 
 
+/// Full NetFlow v9 datagram data
 #[derive(Debug, Clone)]
 pub struct NetflowDatagramV9 {
 	pub sys_uptime_ms: u32,
@@ -55,7 +59,7 @@ pub struct NetflowDatagramV9 {
 }
 
 impl NetflowDatagramV9 {
-	pub fn parse_from_datagram<'a>(input: &'a [u8], addr: &SocketAddr) -> IResult<&'a [u8], NetflowDatagramV9> {
+	pub fn parse_from_datagram<'a>(input: &'a [u8], addr: &SocketAddr) -> IResult<&'a [u8], Self> {
 		let (res, (_num_records, sys_uptime_ms, unix_sec, package_sequence, source_id)) =
 			tuple((be_u16, be_u32, be_u32, be_u32, be_u32))(input)?;
 
@@ -67,6 +71,6 @@ impl NetflowDatagramV9 {
 			flow_records.push(set);
 		}
 
-		Ok((res, NetflowDatagramV9 { sys_uptime_ms, unix_sec, package_sequence, source_id, flow_records }))
+		Ok((res, Self { sys_uptime_ms, unix_sec, package_sequence, source_id, flow_records }))
 	}
 }

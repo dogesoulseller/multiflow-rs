@@ -4,6 +4,7 @@ use nom::multi::count;
 use nom::number::complete::{be_u16, be_u32, be_u8};
 use nom::sequence::tuple;
 
+/// Data record contained in a NetFlow v5 packet
 #[derive(Debug, Clone, Copy)]
 pub struct NetflowDatagramV5Record {
 	pub src_ip: Ipv4Addr,
@@ -35,17 +36,18 @@ fn parse_ipv4_addr(input: &[u8]) -> IResult<&[u8], Ipv4Addr> {
 }
 
 impl NetflowDatagramV5Record {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], NetflowDatagramV5Record> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (src_ip, dst_ip, next_hop_ip, snmp_in_if_idx, snmp_out_if_idx, flow_packets, flow_octets,
 			start_sys_uptime, end_sys_uptime, src_port, dst_port, _pad0, tcp_flags, ip_protocol, ip_tos, src_asn, dst_asn, src_mask, dst_mask, _pad1))
 			= tuple((parse_ipv4_addr, parse_ipv4_addr, parse_ipv4_addr, be_u16, be_u16, be_u32, be_u32, be_u32,
 					 be_u32, be_u16, be_u16, be_u8, be_u8, be_u8, be_u8, be_u16, be_u16, be_u8, be_u8, be_u16))(input)?;
 
-		Ok((res, NetflowDatagramV5Record { src_ip, dst_ip, next_hop_ip, snmp_in_if_idx, snmp_out_if_idx, flow_packets, flow_octets,
+		Ok((res, Self { src_ip, dst_ip, next_hop_ip, snmp_in_if_idx, snmp_out_if_idx, flow_packets, flow_octets,
 			start_sys_uptime, end_sys_uptime, src_port, dst_port, _pad0, tcp_flags, ip_protocol, ip_tos, src_asn, dst_asn, src_mask, dst_mask, _pad1 }))
 	}
 }
 
+/// Full NetFlow v5 datagram data
 #[derive(Debug, Clone)]
 pub struct NetflowDatagramV5 {
 	pub sys_uptime_ms: u32,
@@ -59,12 +61,12 @@ pub struct NetflowDatagramV5 {
 }
 
 impl NetflowDatagramV5 {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], NetflowDatagramV5> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (num_records, sys_uptime_ms, unix_sec, unix_nsec, flow_seqnum, engine_type, engine_id, sampling_interval)) =
 			tuple((be_u16, be_u32, be_u32, be_u32, be_u32, be_u8, be_u8, be_u16))(input)?;
 
 		let (res, flow_records) = count(NetflowDatagramV5Record::parse_from_datagram, num_records as usize)(res)?;
 
-		Ok((res, NetflowDatagramV5 { sys_uptime_ms, unix_sec, unix_nsec, flow_seqnum, engine_type, engine_id, sampling_interval, flow_records }))
+		Ok((res, Self { sys_uptime_ms, unix_sec, unix_nsec, flow_seqnum, engine_type, engine_id, sampling_interval, flow_records }))
 	}
 }

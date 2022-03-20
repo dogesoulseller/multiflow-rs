@@ -1,4 +1,4 @@
-use multiflow::sflow_parse::datagram::datagram_parse;
+use multiflow::sflow_parse::datagram::parse_sflow_data;
 
 fn main() {
 	// Test setup for sFlow
@@ -8,7 +8,7 @@ fn main() {
 	loop {
 		let (byten, addr) = sock.recv_from(&mut recv_buf).expect("Failed to receive UDP data");
 
-		let dg = datagram_parse(&recv_buf).unwrap().1;
+		let dg = parse_sflow_data(&recv_buf).unwrap().1;
 
 		println!("Received {} bytes from {}\nDatagram: {:?}", byten, addr, dg);
 	}

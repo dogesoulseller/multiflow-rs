@@ -7,31 +7,37 @@ use nom::number::complete::{be_u128, be_u16, be_u24, be_u32, be_u64, be_u8};
 use crate::netflow_parse::datagram_v9_template::{NETFLOW_V9_OPTIONS_TEMPLATES, NETFLOW_V9_TEMPLATES, NetflowDatagramTemplateField};
 use crate::netflow_parse::netflow_v9_typemap::NetflowV9TypeHandlingMode;
 
-type Mac = String;
-
+/// Parsed data field's value with a given representation
 #[derive(Debug, Clone)]
 pub enum NetflowV9DataValue {
+	/// A number up to 8 bytes long (64-bit), made up of either a 1, 2, 3, 4, or 8 byte number. Other numbers are represented as `Unknown`
 	Number(u64),
-	NonstandardNumber(Vec<u8>),
+	/// IPv4 address
 	IPv4(Ipv4Addr),
+	/// IPv6 address
 	IPv6(Ipv6Addr),
-	MAC(Mac),
+	/// MAC address represented as a string in the format AA:BB:CC:DD:EE:FF
+	MAC(String),
+	/// An arbitrary UTF-8/ASCII string
 	String(String),
+	/// Unknown type, the bytes get stored raw
 	Unknown(Vec<u8>),
 }
 
+/// A single data field with a string name and a value
 #[derive(Debug, Clone)]
 pub struct NetflowV9DataField {
 	pub name: &'static str,
+	pub type_id: u16,
 	pub value: NetflowV9DataValue,
 }
 
 impl NetflowV9DataField {
-	pub fn parse_from_datagram<'a>(input: &'a [u8], type_info: &NetflowDatagramTemplateField) -> IResult<&'a [u8], NetflowV9DataField> {
+	pub fn parse_from_datagram<'a>(input: &'a [u8], type_info: &NetflowDatagramTemplateField) -> IResult<&'a [u8], Self> {
 		match type_info.field_type {
 			None => {
 				let (res, bytes) = take(type_info.field_length as usize)(input)?;
-				Ok((res, NetflowV9DataField { name: "UNKNOWN", value: NetflowV9DataValue::Unknown(Vec::from(bytes)) }))
+				Ok((res, Self { name: "UNKNOWN", type_id: 0, value: NetflowV9DataValue::Unknown(Vec::from(bytes)) }))
 			}
 			Some(ft) => {
 				match ft.2 {
@@ -39,52 +45,53 @@ impl NetflowV9DataField {
 						match type_info.field_length {
 							1 => {
 								let (res, numval) = be_u8(input)?;
-								Ok((res, NetflowV9DataField { name: ft.0, value: NetflowV9DataValue::Number(numval as u64) }))
+								Ok((res, Self { name: ft.0, type_id: ft.3, value: NetflowV9DataValue::Number(numval as u64) }))
 							}
 							2 => {
 								let (res, numval) = be_u16(input)?;
-								Ok((res, NetflowV9DataField { name: ft.0, value: NetflowV9DataValue::Number(numval as u64) }))
+								Ok((res, Self { name: ft.0, type_id: ft.3, value: NetflowV9DataValue::Number(numval as u64) }))
 							}
 							3 => {
 								let (res, numval) = be_u24(input)?;
-								Ok((res, NetflowV9DataField { name: ft.0, value: NetflowV9DataValue::Number(numval as u64) }))
+								Ok((res, Self { name: ft.0, type_id: ft.3, value: NetflowV9DataValue::Number(numval as u64) }))
 							}
 							4 => {
 								let (res, numval) = be_u32(input)?;
-								Ok((res, NetflowV9DataField { name: ft.0, value: NetflowV9DataValue::Number(numval as u64) }))
+								Ok((res, Self { name: ft.0, type_id: ft.3, value: NetflowV9DataValue::Number(numval as u64) }))
 							}
 							8 => {
 								let (res, numval) = be_u64(input)?;
-								Ok((res, NetflowV9DataField { name: ft.0, value: NetflowV9DataValue::Number(numval as u64) }))
+								Ok((res, Self { name: ft.0, type_id: ft.3, value: NetflowV9DataValue::Number(numval as u64) }))
 							}
 							_ => {
 								let (res, numval) = take(type_info.field_length as usize)(input)?;
-								Ok((res, NetflowV9DataField { name: ft.0, value: NetflowV9DataValue::NonstandardNumber(Vec::from(numval)) }))
+								Ok((res, Self { name: ft.0, type_id: ft.3, value: NetflowV9DataValue::Unknown(Vec::from(numval)) }))
 							}
 						}
 					}
 					NetflowV9TypeHandlingMode::IPv4 => {
 						let (res, ipint) = be_u32(input)?;
 
-						Ok((res, NetflowV9DataField { name: ft.0, value: NetflowV9DataValue::IPv4(Ipv4Addr::from(ipint)) }))
+						Ok((res, Self { name: ft.0, type_id: ft.3, value: NetflowV9DataValue::IPv4(Ipv4Addr::from(ipint)) }))
 					}
 					NetflowV9TypeHandlingMode::IPv6 => {
 						let (res, ipint) = be_u128(input)?;
 
-						Ok((res, NetflowV9DataField { name: ft.0, value: NetflowV9DataValue::IPv6(Ipv6Addr::from(ipint)) }))
+						Ok((res, Self { name: ft.0, type_id: ft.3, value: NetflowV9DataValue::IPv6(Ipv6Addr::from(ipint)) }))
 					}
 					NetflowV9TypeHandlingMode::MAC => {
 						let (res, macbytes) = take(6usize)(input)?;
 						let macstr = format!("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
 											 macbytes[0], macbytes[1], macbytes[2], macbytes[3], macbytes[4], macbytes[5]);
 
-						Ok((res, NetflowV9DataField { name: ft.0, value: NetflowV9DataValue::MAC(macstr) }))
+						Ok((res, Self { name: ft.0, type_id: ft.3, value: NetflowV9DataValue::MAC(macstr) }))
 					}
 					NetflowV9TypeHandlingMode::String => {
 						let (res, rawstr) = take(type_info.field_length as usize)(input)?;
 
-						Ok((res, NetflowV9DataField {
+						Ok((res, Self {
 							name: ft.0,
+							type_id: ft.3,
 							value: NetflowV9DataValue::String(match String::from_utf8_lossy(rawstr) {
 								Cow::Borrowed(s) => String::from(s),
 								Cow::Owned(s) => s
@@ -97,15 +104,18 @@ impl NetflowV9DataField {
 	}
 }
 
+/// A single flow set containing the records and fields
 #[derive(Debug, Clone)]
 pub struct NetflowDatagramDataFlowSet {
 	pub length: u16,
+	/// Non-option data records
 	pub records: Option<Vec<Vec<NetflowV9DataField>>>,
+	/// Option data records
 	pub option_records: Option<Vec<Vec<NetflowV9DataField>>>,
 }
 
 impl NetflowDatagramDataFlowSet {
-	pub fn parse_from_datagram<'a>(input: &'a [u8], addr: &SocketAddr, template_id: u16) -> IResult<&'a [u8], NetflowDatagramDataFlowSet> {
+	pub fn parse_from_datagram<'a>(input: &'a [u8], addr: &SocketAddr, template_id: u16) -> IResult<&'a [u8], Self> {
 		let (res, length) = be_u16(input)?;
 
 		if let Some(ts) = NETFLOW_V9_TEMPLATES.lock().unwrap().get(&(*addr, template_id)) {
@@ -131,7 +141,7 @@ impl NetflowDatagramDataFlowSet {
 
 			let (res, _) = take(padding)(curpos)?;
 
-			Ok((res, NetflowDatagramDataFlowSet { length, records: Some(records), option_records: None }))
+			Ok((res, Self { length, records: Some(records), option_records: None }))
 		} else if let Some(ts) = NETFLOW_V9_OPTIONS_TEMPLATES.lock().unwrap().get(&(*addr, template_id)) {
 			let template_length = ts.total_field_length();
 
@@ -155,8 +165,9 @@ impl NetflowDatagramDataFlowSet {
 
 			let (res, _) = take(padding)(curpos)?;
 
-			Ok((res, NetflowDatagramDataFlowSet { length, records: None, option_records: Some(records) }))
+			Ok((res, Self { length, records: None, option_records: Some(records) }))
 		} else {
+			eprintln!("Could not find template with ID {} for address {}", template_id, addr);
 			fail(res)
 		}
 	}

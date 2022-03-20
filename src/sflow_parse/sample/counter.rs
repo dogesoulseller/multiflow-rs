@@ -29,7 +29,7 @@ pub struct SFlowCounterDataGeneric {
 }
 
 impl SFlowCounterDataGeneric {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowCounterDataGeneric> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (index, interface_type, speed, direction, status, in_octets, in_ucast_packets,
 			in_multicast_packets, in_broadcast_packets, in_discarded, in_errors,
 			in_unknown_protos, out_octets, out_ucast_packets, out_multicast_packets,
@@ -38,7 +38,7 @@ impl SFlowCounterDataGeneric {
 					 be_u32, be_u32, be_u32, be_u64, be_u32, be_u32, be_u32, be_u32, be_u32,
 					 be_u32))(input)?;
 
-		Ok((res, SFlowCounterDataGeneric {
+		Ok((res, Self {
 			index,
 			interface_type,
 			speed,
@@ -81,7 +81,7 @@ pub struct SFlowCounterDataEthernet {
 }
 
 impl SFlowCounterDataEthernet {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowCounterDataEthernet> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (alignment_errors, fcs_errors, single_collision_frames,
 			multiple_collision_frames, sqe_test_errors, deferred_transmissions, late_collisions,
 			excessive_collisions, internal_mac_transmit_errors, carrier_sense_errors,
@@ -89,7 +89,7 @@ impl SFlowCounterDataEthernet {
 			= tuple((be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32,
 					 be_u32, be_u32, be_u32, be_u32))(input)?;
 
-		Ok((res, SFlowCounterDataEthernet {
+		Ok((res, Self {
 			alignment_errors,
 			fcs_errors,
 			single_collision_frames,
@@ -131,14 +131,14 @@ pub struct SFlowCounterDataTokenRing {
 }
 
 impl SFlowCounterDataTokenRing {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowCounterDataTokenRing> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (line_errors, burst_errors, ac_errors, abort_trans_errors, internal_errors,
 			lost_frame_errors, receive_congestions, frame_copied_errors, token_errors, soft_errors,
 			hard_errors, signal_loss, transmit_beacons, recoverys, lobe_wires, removes, singles, freq_errors))
 			= tuple((be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32,
 					 be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32))(input)?;
 
-		Ok((res, SFlowCounterDataTokenRing {
+		Ok((res, Self {
 			line_errors,
 			burst_errors,
 			ac_errors,
@@ -180,7 +180,7 @@ pub struct SFlowCounterDataBaseVG {
 }
 
 impl SFlowCounterDataBaseVG {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowCounterDataBaseVG> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (in_high_priority_frames, in_high_priority_octets, in_norm_priority_frames,
 			in_norm_priority_octets, in_ipm_errors, in_oversize_frame_errors, in_data_errors,
 			in_null_addressed_frames, out_high_priority_frames, out_high_priority_octets,
@@ -188,7 +188,7 @@ impl SFlowCounterDataBaseVG {
 			= tuple((be_u32, be_u64, be_u32, be_u64, be_u32, be_u32, be_u32, be_u32, be_u32,
 					 be_u64, be_u32, be_u64, be_u64, be_u64))(input)?;
 
-		Ok((res, SFlowCounterDataBaseVG {
+		Ok((res, Self {
 			in_high_priority_frames,
 			in_high_priority_octets,
 			in_norm_priority_frames,
@@ -218,11 +218,11 @@ pub struct SFlowCounterDataVLAN {
 }
 
 impl SFlowCounterDataVLAN {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowCounterDataVLAN> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (vlan_id, octets, ucast_packets, multicast_packets, broadcast_packets, discards))
 			= tuple((be_u32, be_u64, be_u32, be_u32, be_u32, be_u32))(input)?;
 
-		Ok((res, SFlowCounterDataVLAN { vlan_id, octets, ucast_packets, multicast_packets, broadcast_packets, discards }))
+		Ok((res, Self { vlan_id, octets, ucast_packets, multicast_packets, broadcast_packets, discards }))
 	}
 }
 
@@ -236,11 +236,11 @@ pub struct SFlowCounterDataProcessor {
 }
 
 impl SFlowCounterDataProcessor {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowCounterDataProcessor> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (cpu_percent_5s, cpu_percent_1m, cpu_percent_5m, total_memory, free_memory))
 			= tuple((be_u32, be_u32, be_u32, be_u64, be_u64))(input)?;
 
-		Ok((res, SFlowCounterDataProcessor { cpu_percent_5s, cpu_percent_1m, cpu_percent_5m, total_memory, free_memory }))
+		Ok((res, Self { cpu_percent_5s, cpu_percent_1m, cpu_percent_5m, total_memory, free_memory }))
 	}
 }
 
@@ -255,7 +255,7 @@ pub enum SFlowCounterRecord {
 }
 
 impl SFlowCounterRecord {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowCounterRecord> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, record_type) = be_u32(input)?;
 		let (res, _record_size) = be_u32(res)?;
 
@@ -263,27 +263,27 @@ impl SFlowCounterRecord {
 		match record_type {
 			1 => {
 				let (res, record) = SFlowCounterDataGeneric::parse_from_datagram(res)?;
-				Ok((res, SFlowCounterRecord::Generic(record)))
+				Ok((res, Self::Generic(record)))
 			}
 			2 => {
 				let (res, record) = SFlowCounterDataEthernet::parse_from_datagram(res)?;
-				Ok((res, SFlowCounterRecord::Ethernet(record)))
+				Ok((res, Self::Ethernet(record)))
 			}
 			3 => {
 				let (res, record) = SFlowCounterDataTokenRing::parse_from_datagram(res)?;
-				Ok((res, SFlowCounterRecord::TokenRing(record)))
+				Ok((res, Self::TokenRing(record)))
 			}
 			4 => {
 				let (res, record) = SFlowCounterDataBaseVG::parse_from_datagram(res)?;
-				Ok((res, SFlowCounterRecord::BaseVG(record)))
+				Ok((res, Self::BaseVG(record)))
 			}
 			5 => {
 				let (res, record) = SFlowCounterDataVLAN::parse_from_datagram(res)?;
-				Ok((res, SFlowCounterRecord::VLAN(record)))
+				Ok((res, Self::VLAN(record)))
 			}
 			1001 => {
 				let (res, record) = SFlowCounterDataProcessor::parse_from_datagram(res)?;
-				Ok((res, SFlowCounterRecord::Processor(record)))
+				Ok((res, Self::Processor(record)))
 			}
 			_ => {
 				fail(res)
@@ -301,11 +301,11 @@ pub struct SFlowCounterSample {
 }
 
 impl SFlowCounterSample {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowCounterSample> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (seq, src, records_count)) = tuple((be_u32, be_u32, be_u32))(input)?;
 
 		let (res, records) = count(SFlowCounterRecord::parse_from_datagram, records_count as usize)(res)?;
 
-		Ok((res, SFlowCounterSample { seq, src, records_count, records }))
+		Ok((res, Self { seq, src, records_count, records }))
 	}
 }

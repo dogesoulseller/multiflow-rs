@@ -9,7 +9,13 @@ fn main() {
 		let (byten, addr) = sock.recv_from(&mut recv_buf).expect("Failed to receive UDP data");
 		eprintln!("Received {} bytes from {}", byten, addr);
 
-		let dg = netflow_parse::datagram::datagram_parse(&recv_buf[0..byten], &addr).unwrap().1;
+		let dg = match netflow_parse::datagram::parse_netflow_data(&recv_buf[0..byten], &addr) {
+			Ok((_, dg)) => dg,
+			Err(_e) => {
+				eprintln!("Failed to process NetFlow packet");
+				continue;
+			}
+		};
 
 		eprintln!("Datagram: {:#?}", dg);
 	}

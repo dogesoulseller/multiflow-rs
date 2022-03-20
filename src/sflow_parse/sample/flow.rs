@@ -16,13 +16,13 @@ pub struct SFlowFlowRawPacketHeader {
 }
 
 impl SFlowFlowRawPacketHeader {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowFlowRawPacketHeader> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (protocol, frame_length, stripped, header_size)) =
 			tuple((be_u32, be_u32, be_u32, be_u32))(input)?;
 
 		let (res, header) = take(header_size)(res)?;
 
-		Ok((res, SFlowFlowRawPacketHeader { protocol, frame_length, stripped, header_size, header: Vec::from(header) }))
+		Ok((res, Self { protocol, frame_length, stripped, header_size, header: Vec::from(header) }))
 	}
 }
 
@@ -47,7 +47,7 @@ pub enum SFlowFlowSampleRecord {
 }
 
 impl SFlowFlowSampleRecord {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowFlowSampleRecord> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, record_type) = be_u32(input)?;
 		let (res, _record_size) = be_u32(res)?;
 
@@ -55,7 +55,7 @@ impl SFlowFlowSampleRecord {
 		match record_type {
 			1 => {
 				let (res, record) = SFlowFlowRawPacketHeader::parse_from_datagram(res)?;
-				Ok((res, SFlowFlowSampleRecord::Raw(record)))
+				Ok((res, Self::Raw(record)))
 			}
 			// 2 => {
 			// 	let (res, record) = SFlowCounterDataEthernet::parse_from_datagram(res)?;
@@ -140,12 +140,12 @@ pub struct SFlowFlowSample {
 }
 
 impl SFlowFlowSample {
-	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], SFlowFlowSample> {
+	pub fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
 		let (res, (seq, src, rate, pool, dropped, input_if, output_if, record_count)) =
 			tuple((be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32, be_u32))(input)?;
 
 		let (res, records) = count(SFlowFlowSampleRecord::parse_from_datagram, record_count as usize)(res)?;
 
-		Ok((res, SFlowFlowSample { seq, src, rate, pool, dropped, input_if, output_if, record_count, records }))
+		Ok((res, Self { seq, src, rate, pool, dropped, input_if, output_if, record_count, records }))
 	}
 }
