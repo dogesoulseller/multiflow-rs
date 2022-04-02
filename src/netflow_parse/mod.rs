@@ -4,16 +4,24 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use nom::IResult;
 use crate::netflow_parse::datagram::{NetflowDatagramData, NetflowPeekResult};
+use crate::netflow_parse::datagram_ipfix_template::{NetflowDatagramIPFIXOptionsTemplateSet, NetflowDatagramIPFIXTemplateSet};
 use crate::netflow_parse::datagram_v9_template::{NetflowDatagramOptionsTemplateSet, NetflowDatagramTemplateSet};
 
 pub mod datagram;
+
 pub mod datagram_v1;
+
 pub mod datagram_v5;
+
 pub mod datagram_v9;
-pub mod datagram_ipfix;
 pub mod netflow_v9_typemap;
 pub mod datagram_v9_template;
 pub mod datagram_v9_data;
+
+pub mod datagram_ipfix;
+pub mod datagram_ipfix_template;
+pub mod netflow_ipfix_typemap;
+pub mod datagram_ipfix_data;
 
 
 /// Main NetFlow parser handling parsing, state, and providing an interface for it. It serves as the main entry point into the library
@@ -21,6 +29,9 @@ pub mod datagram_v9_data;
 pub struct NetflowParser {
 	templates: HashMap<(SocketAddr, u16), NetflowDatagramTemplateSet>,
 	options_templates: HashMap<(SocketAddr, u16), NetflowDatagramOptionsTemplateSet>,
+
+	templates_ipfix: HashMap<(SocketAddr, u16), NetflowDatagramIPFIXTemplateSet>,
+	options_templates_ipfix: HashMap<(SocketAddr, u16), NetflowDatagramIPFIXOptionsTemplateSet>
 }
 
 impl NetflowParser {
@@ -59,5 +70,15 @@ impl NetflowParser {
 	/// Manually register a new NetFlow options template
 	pub fn register_netflow_options_template(&mut self, set: &NetflowDatagramOptionsTemplateSet, addr: &SocketAddr) {
 		self.options_templates.insert((*addr, set.template_id), set.clone());
+	}
+
+	/// Manually register a new NetFlow IPFIX template
+	pub fn register_netflow_ipfix_template(&mut self, set: &NetflowDatagramIPFIXTemplateSet, addr: &SocketAddr) {
+		self.templates_ipfix.insert((*addr, set.template_id), set.clone());
+	}
+
+	/// Manually register a new NetFlow IPFIX options template
+	pub fn register_netflow_ipfix_options_template(&mut self, set: &NetflowDatagramIPFIXOptionsTemplateSet, addr: &SocketAddr) {
+		self.options_templates_ipfix.insert((*addr, set.template_id), set.clone());
 	}
 }

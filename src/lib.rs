@@ -8,5 +8,8 @@ extern crate nom;
 #[macro_use]
 extern crate lazy_static;
 
+#[cfg(feature = "netflow")]
 pub mod netflow_parse;
+
+#[cfg(feature = "sflow")]
 pub mod sflow_parse;

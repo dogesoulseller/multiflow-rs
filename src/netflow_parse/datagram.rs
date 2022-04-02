@@ -5,6 +5,7 @@ use nom::combinator::fail;
 use nom::number::complete::{be_u16, be_u32, be_u8};
 use nom::IResult;
 use nom::sequence::tuple;
+use crate::netflow_parse::datagram_ipfix::NetflowDatagramIPFIX;
 use crate::netflow_parse::datagram_v1::NetflowDatagramV1;
 use crate::netflow_parse::datagram_v5::NetflowDatagramV5;
 use crate::netflow_parse::datagram_v9::NetflowDatagramV9;
@@ -18,7 +19,7 @@ pub enum NetflowDatagramData {
 	DatagramV1(NetflowDatagramV1),
 	DatagramV5(NetflowDatagramV5),
 	DatagramV9(NetflowDatagramV9),
-	IPFIX,
+	DatagramIPFIX(NetflowDatagramIPFIX),
 }
 
 
@@ -91,6 +92,7 @@ pub(super) fn peek_netflow_basic_info(input: &[u8]) -> IResult<&[u8], NetflowPee
 
 			Ok((input, NetflowPeekResult::V9(NetflowV9PeekData{flow_set_count, sys_uptime, unix_secs, package_sequence_num, source_id})))
 		},
+		// TODO: 10
 		_ => {
 			eprintln!("Unsupported NetFlow version {}", netflow_version);
 			fail(input)
@@ -112,7 +114,6 @@ pub(super) fn peek_netflow_basic_info(input: &[u8]) -> IResult<&[u8], NetflowPee
 pub(super) fn parse_netflow_data<'a>(input: &'a [u8], addr: &SocketAddr, parser: &mut NetflowParser) -> IResult<&'a [u8], NetflowDatagramData> {
 	let (res, netflow_version) = be_u16(input)?;
 
-	// TODO: IPFIX = 10
 	match netflow_version {
 		1 => {
 			let (res, parsed) = NetflowDatagramV1::parse_from_datagram(res)?;
@@ -126,10 +127,10 @@ pub(super) fn parse_netflow_data<'a>(input: &'a [u8], addr: &SocketAddr, parser:
 			let (res, parsed) = NetflowDatagramV9::parse_from_datagram(res, addr, parser)?;
 			Ok((res, NetflowDatagramData::DatagramV9(parsed)))
 		}
-		// 10 => {
-		// 	let (res, parsed) = NetflowDatagramIPFIX::parse_from_datagram(res)?;
-		// 	Ok((res, NetflowDatagram{data: NetflowDatagramData::DatagramIPFIX(parsed)}))
-		// }
+		10 => {
+			let (res, parsed) = NetflowDatagramIPFIX::parse_from_datagram(res, addr, parser)?;
+			Ok((res, NetflowDatagramData::DatagramIPFIX(parsed)))
+		}
 		_ => {
 			eprintln!("Unsupported NetFlow version {}", netflow_version);
 			fail(res)
