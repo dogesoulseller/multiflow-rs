@@ -23,23 +23,15 @@ impl NetflowDatagramTemplateField {
 	}
 }
 
-/// Regular template set data
+/// Single template
 #[derive(Debug, Clone)]
-pub struct NetflowDatagramTemplateSet {
-	pub length: u16,
+pub struct NetflowDatagramTemplate {
 	pub template_id: u16,
 	pub field_count: u16,
-	pub fields: Vec<NetflowDatagramTemplateField>,
+	pub fields: Vec<NetflowDatagramTemplateField>
 }
 
-impl NetflowDatagramTemplateSet {
-	pub(crate) fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
-		let (res, (length, template_id, field_count)) = tuple((be_u16, be_u16, be_u16))(input)?;
-
-		let (res, fields) = count(NetflowDatagramTemplateField::parse_from_datagram, field_count as usize)(res)?;
-		Ok((res, Self { length, template_id, field_count, fields }))
-	}
-
+impl NetflowDatagramTemplate {
 	/// Get the total length of all template fields
 	pub fn total_field_length(&self) -> u16 {
 		let mut acc: u16 = 0;
@@ -48,6 +40,41 @@ impl NetflowDatagramTemplateSet {
 		}
 
 		acc
+	}
+}
+
+/// Regular template set data
+#[derive(Debug, Clone)]
+pub struct NetflowDatagramTemplateSet {
+	pub length: u16,
+	pub template_ids: Vec<u16>,
+	pub field_counts: Vec<u16>,
+	pub fields_vec: Vec<Vec<NetflowDatagramTemplateField>>,
+}
+
+impl NetflowDatagramTemplateSet {
+	pub(crate) fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
+		let (res, length) = be_u16(input)?;
+
+		let mut template_ids: Vec<u16> = vec!();
+		let mut field_counts: Vec<u16> = vec!();
+		let mut fields_vec: Vec<Vec<NetflowDatagramTemplateField>> = vec!();
+
+		let mut res_rem = res;
+		let mut len_rem = length - 4;
+		while len_rem != 0 {
+			let (res, (template_id, field_count)) = tuple((be_u16, be_u16))(res_rem)?;
+
+			let (res, fields) = count(NetflowDatagramTemplateField::parse_from_datagram, field_count as usize)(res)?;
+			res_rem = res;
+			len_rem -= field_count * 4 + 4;
+
+			template_ids.push(template_id);
+			field_counts.push(field_count);
+			fields_vec.push(fields);
+		}
+
+		Ok((res_rem, Self { length, template_ids, field_counts, fields_vec }))
 	}
 }
 
@@ -68,40 +95,17 @@ impl NetflowDatagramOptionsTemplateScopeField {
 	}
 }
 
-/// Options template set data
+/// Single template
 #[derive(Debug, Clone)]
-pub struct NetflowDatagramOptionsTemplateSet {
-	pub length: u16,
+pub struct NetflowDatagramOptionsTemplate {
 	pub template_id: u16,
-	pub scope_fields_length: u16,
-	pub option_fields_length: u16,
+	pub scope_field_count: u16,
+	pub option_field_count: u16,
 	pub scope_fields: Vec<NetflowDatagramOptionsTemplateScopeField>,
-	pub option_fields: Vec<NetflowDatagramTemplateField>,
+	pub option_fields: Vec<NetflowDatagramTemplateField>
 }
 
-const INFO_LENGTH: u16 = 4;
-
-impl NetflowDatagramOptionsTemplateSet {
-	pub(crate) fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
-		let (res, (length, template_id, scope_fields_length, option_fields_length)) = tuple((be_u16, be_u16, be_u16, be_u16))(input)?;
-
-		let scope_iter_count = scope_fields_length / INFO_LENGTH;
-		let option_iter_count = option_fields_length / INFO_LENGTH;
-
-		let (res, scope_fields)
-			= count(NetflowDatagramOptionsTemplateScopeField::parse_from_datagram, scope_iter_count as usize)(res)?;
-
-		let (res, option_fields)
-			= count(NetflowDatagramTemplateField::parse_from_datagram, option_iter_count as usize)(res)?;
-
-		let padding_skip_n = length - (10 + scope_fields_length + option_fields_length);
-		if padding_skip_n != 0 {
-			Ok(((&res[padding_skip_n as usize..]), Self { length, template_id, scope_fields_length, option_fields_length, scope_fields, option_fields }))
-		} else {
-			Ok((res, Self { length, template_id, scope_fields_length, option_fields_length, scope_fields, option_fields }))
-		}
-	}
-
+impl NetflowDatagramOptionsTemplate {
 	/// Get the total length of all template fields
 	pub fn total_field_length(&self) -> u16 {
 		let mut acc: u16 = 0;
@@ -111,5 +115,59 @@ impl NetflowDatagramOptionsTemplateSet {
 		}
 
 		acc
+	}
+}
+
+/// Options template set data
+#[derive(Debug, Clone)]
+pub struct NetflowDatagramOptionsTemplateSet {
+	pub length: u16,
+	pub template_ids: Vec<u16>,
+	pub scope_fields_lengths: Vec<u16>,
+	pub option_fields_lengths: Vec<u16>,
+	pub scope_fields_vec: Vec<Vec<NetflowDatagramOptionsTemplateScopeField>>,
+	pub option_fields_vec: Vec<Vec<NetflowDatagramTemplateField>>,
+}
+
+const INFO_LENGTH: u16 = 4;
+
+impl NetflowDatagramOptionsTemplateSet {
+	pub(crate) fn parse_from_datagram(input: &[u8]) -> IResult<&[u8], Self> {
+		let (res, length) = be_u16(input)?;
+
+		let mut len_rem = length - 4;
+		let mut res_rem = res;
+
+		let mut template_ids: Vec<u16> = vec!();
+		let mut scope_fields_lengths: Vec<u16> = vec!();
+		let mut option_fields_lengths: Vec<u16> = vec!();
+		let mut scope_fields_vec: Vec<Vec<NetflowDatagramOptionsTemplateScopeField>> = vec!();
+		let mut option_fields_vec: Vec<Vec<NetflowDatagramTemplateField>> = vec!();
+
+		while len_rem >= 4 {
+			let (res, (template_id, scope_fields_length, option_fields_length)) = tuple((be_u16, be_u16, be_u16))(res_rem)?;
+
+			len_rem -= 6;
+
+			let scope_iter_count = scope_fields_length / INFO_LENGTH;
+			let option_iter_count = option_fields_length / INFO_LENGTH;
+
+			let (res, scope_fields)
+				= count(NetflowDatagramOptionsTemplateScopeField::parse_from_datagram, scope_iter_count as usize)(res)?;
+
+			let (res, option_fields)
+				= count(NetflowDatagramTemplateField::parse_from_datagram, option_iter_count as usize)(res)?;
+
+			res_rem = res;
+			len_rem -= scope_fields_length + option_fields_length;
+
+			template_ids.push(template_id);
+			scope_fields_lengths.push(scope_fields_length);
+			option_fields_lengths.push(option_fields_length);
+			scope_fields_vec.push(scope_fields);
+			option_fields_vec.push(option_fields);
+		}
+
+		Ok(((&res_rem[len_rem as usize..]), Self { length, template_ids, scope_fields_lengths, option_fields_lengths, scope_fields_vec, option_fields_vec }))
 	}
 }

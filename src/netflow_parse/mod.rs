@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use nom::IResult;
 use crate::netflow_parse::datagram::{NetflowDatagramData, NetflowPeekResult};
-use crate::netflow_parse::datagram_v9_template::{NetflowDatagramOptionsTemplateSet, NetflowDatagramTemplateSet};
+use crate::netflow_parse::datagram_v9_template::{NetflowDatagramOptionsTemplate, NetflowDatagramOptionsTemplateSet, NetflowDatagramTemplate, NetflowDatagramTemplateSet};
 
 pub mod datagram;
 pub mod datagram_v1;
@@ -19,8 +19,8 @@ pub mod datagram_v9_data;
 /// Main NetFlow parser handling parsing, state, and providing an interface for it. It serves as the main entry point into the library
 #[derive(Debug, Clone, Default)]
 pub struct NetflowParser {
-	templates: HashMap<(SocketAddr, u16), NetflowDatagramTemplateSet>,
-	options_templates: HashMap<(SocketAddr, u16), NetflowDatagramOptionsTemplateSet>,
+	templates: HashMap<(SocketAddr, u16), NetflowDatagramTemplate>,
+	options_templates: HashMap<(SocketAddr, u16), NetflowDatagramOptionsTemplate>,
 }
 
 impl NetflowParser {
@@ -53,11 +53,26 @@ impl NetflowParser {
 
 	/// Manually register a new NetFlow template
 	pub fn register_netflow_template(&mut self, set: &NetflowDatagramTemplateSet, addr: &SocketAddr) {
-		self.templates.insert((*addr, set.template_id), set.clone());
+		for s in 0..set.template_ids.len() {
+			let s = NetflowDatagramTemplate{template_id: *set.template_ids.get(s).unwrap(),
+				field_count: *set.field_counts.get(s).unwrap(),
+				fields: set.fields_vec.get(s).unwrap().clone()
+			};
+			self.templates.insert((*addr, s.template_id), s);
+		}
 	}
 
 	/// Manually register a new NetFlow options template
 	pub fn register_netflow_options_template(&mut self, set: &NetflowDatagramOptionsTemplateSet, addr: &SocketAddr) {
-		self.options_templates.insert((*addr, set.template_id), set.clone());
+		// FIXME:
+		for s in 0..set.template_ids.len() {
+			let s = NetflowDatagramOptionsTemplate{template_id: *set.template_ids.get(s).unwrap(),
+				option_field_count: *set.option_fields_lengths.get(s).unwrap() / 4,
+				scope_field_count: *set.scope_fields_lengths.get(s).unwrap() / 4,
+				scope_fields: set.scope_fields_vec.get(s).unwrap().clone(),
+				option_fields: set.option_fields_vec.get(s).unwrap().clone()
+			};
+			self.options_templates.insert((*addr, s.template_id), s);
+		}
 	}
 }
